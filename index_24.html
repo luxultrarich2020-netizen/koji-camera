@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>カメラ枠テスト</title>
+<style>
+body{margin:0;background:#14161c;color:#e9e9ee;font-family:"Hiragino Sans","Yu Gothic",-apple-system,sans-serif;padding-bottom:40px}
+h1{font-size:15px;margin:0;padding:12px 14px;background:#1e3a5f}
+.wrap{padding:12px}
+button{font-family:inherit;border:none;border-radius:10px;font-size:15px;padding:12px;color:#fff;background:#1e3a5f}
+#startBtn{width:100%;font-size:17px;padding:16px;background:#a9822f}
+#view{width:100%;display:none;background:#000;border-radius:8px}
+.row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:10px 0}
+.row button{background:#333;padding:10px 0;font-size:13px}
+.row button.on{background:#a9822f}
+#shutter{display:none;width:100%;font-size:20px;padding:18px;background:#c0392b;margin:6px 0}
+#info{font-size:13px;line-height:1.7;color:#aab}
+#msg{margin:10px 0;padding:10px;border-radius:8px;background:#3a2325;color:#e6a19b;display:none;font-size:14px}
+#thumbs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px}
+#thumbs img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px}
+.flash{animation:fl .15s}
+@keyframes fl{from{opacity:.3}to{opacity:1}}
+</style>
+</head>
+<body>
+<h1>カメラ枠テスト（看板の枠をカメラ映像に重ねる）</h1>
+<div class="wrap">
+  <button id="startBtn" onclick="start()">カメラを起動する</button>
+  <div id="msg"></div>
+  <canvas id="view"></canvas>
+  <div class="row" id="corners" style="display:none">
+    <button data-c="tl">左上</button><button data-c="tr">右上</button>
+    <button data-c="bl" class="on">左下</button><button data-c="br">右下</button>
+  </div>
+  <button id="shutter" onclick="shoot()">● 撮影（画面から出ません）</button>
+  <div id="info"></div>
+  <div id="thumbs"></div>
+</div>
+
+<script>
+var v=document.createElement('video');v.setAttribute('playsinline','');v.muted=true;
+var cv=document.getElementById('view'),cx=cv.getContext('2d'),pos='bl',count=0,stream=null;
+function g(i){return document.getElementById(i)}
+function msg(t){var m=g('msg');m.textContent=t;m.style.display=t?'block':'none'}
+
+function pad(n){return String(n).padStart(2,'0')}
+function nowText(){var d=new Date();return d.getFullYear()+'/'+pad(d.getMonth()+1)+'/'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes())}
+
+// アプリ本体と同じ形の看板（緑・白枠、工事名、検査内容3行、日時）
+function fit(c,t,maxW,px,bold){var f=Math.round(px);c.font=(bold?'bold ':'')+f+'px sans-serif';while(c.measureText(t).width>maxW&&f>px*0.4){f--;c.font=(bold?'bold ':'')+f+'px sans-serif'}}
+function drawBoard(c,W,H){
+  var w=Math.min(Math.round(Math.min(W,H)*0.62),Math.round(W*0.96)),h=Math.round(w*0.68),m=Math.round(Math.min(W,H)*0.008);
+  var x=pos.charAt(1)==='l'?m:W-w-m,y=pos.charAt(0)==='t'?m:H-h-m;
+  var u=w,gp=u*0.018,hh=u*0.15,fh=u*0.10,x0=x+gp,y0=y+gp,iw=w-2*gp,ih=h-2*gp,lw=u*0.2;
+  c.save();
+  c.fillStyle='rgba(33,82,58,.85)';c.fillRect(x,y,w,h);
+  c.strokeStyle='#fff';c.lineWidth=Math.max(2,u*0.01);c.strokeRect(x0,y0,iw,ih);
+  c.lineWidth=Math.max(1,u*0.006);c.beginPath();
+  c.moveTo(x0,y0+hh);c.lineTo(x0+iw,y0+hh);c.moveTo(x0+lw,y0);c.lineTo(x0+lw,y0+hh);
+  c.moveTo(x0,y0+ih-fh);c.lineTo(x0+iw,y0+ih-fh);c.stroke();
+  c.fillStyle='#fff';c.textBaseline='middle';c.textAlign='left';
+  fit(c,'工事名',lw-u*0.03,hh*0.5,true);c.fillText('工事名',x0+u*0.015,y0+hh/2);
+  var pj='（テスト）松戸市松戸根古屋共同住宅';fit(c,pj,iw-lw-u*0.03,hh*0.5,false);c.fillText(pj,x0+lw+u*0.015,y0+hh/2);
+  var lines=['柱の開先状況','ルート間隔7mm','開先角度35度'],lh=(ih-hh-fh)/3;c.textAlign='center';
+  lines.forEach(function(l,i){fit(c,l,iw-u*0.05,lh*0.62,true);c.fillText(l,x0+iw/2,y0+hh+lh*(i+0.5))});
+  var d=nowText();c.textAlign='right';fit(c,d,iw*0.7,fh*0.62,false);c.fillText(d,x0+iw-u*0.02,y0+ih-fh/2);
+  c.restore()}
+
+function start(){
+  msg('');
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){msg('この画面ではカメラを使えません。https:// で始まるアドレスを、ChromeかSafariで開いてください（MessengerやLINEの中では開かないでください）');return}
+  g('startBtn').disabled=true;g('startBtn').textContent='起動中...';
+  navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false}).then(function(s){
+    stream=s;v.srcObject=s;return v.play()}).then(function(){
+    g('startBtn').style.display='none';cv.style.display='block';g('corners').style.display='grid';g('shutter').style.display='block';
+    var t=stream.getVideoTracks()[0],st=t.getSettings?t.getSettings():{};
+    g('info').textContent='映像サイズ：'+v.videoWidth+'×'+v.videoHeight+(st.facingMode?'　カメラ：'+st.facingMode:'');
+    loop()}).catch(function(e){g('startBtn').disabled=false;g('startBtn').textContent='カメラを起動する';
+    msg('カメラを開けませんでした：'+e.name+'（'+e.message+'）。カメラの許可を確認してください')})}
+function loop(){if(v.videoWidth){if(cv.width!==v.videoWidth){cv.width=v.videoWidth;cv.height=v.videoHeight}cx.drawImage(v,0,0);drawBoard(cx,cv.width,cv.height)}requestAnimationFrame(loop)}
+
+document.querySelectorAll('#corners button').forEach(function(b){b.onclick=function(){pos=b.dataset.c;document.querySelectorAll('#corners button').forEach(function(o){o.classList.toggle('on',o===b)})}});
+
+function shoot(){
+  var t0=performance.now(),W=v.videoWidth,H=v.videoHeight,k=Math.min(1,1600/Math.max(W,H));
+  var c=document.createElement('canvas');c.width=Math.round(W*k);c.height=Math.round(H*k);
+  var x=c.getContext('2d');x.drawImage(v,0,0,c.width,c.height);drawBoard(x,c.width,c.height);
+  cv.classList.remove('flash');void cv.offsetWidth;cv.classList.add('flash');
+  c.toBlob(function(b){
+    count++;var ms=Math.round(performance.now()-t0);c.width=0;
+    var im=document.createElement('img');im.src=URL.createObjectURL(b);
+    var th=g('thumbs');th.insertBefore(im,th.firstChild);while(th.children.length>12)th.removeChild(th.lastChild);
+    g('info').textContent='撮影 '+count+'枚目　サイズ '+Math.round(b.size/1024)+'KB（'+c.width+'）　処理時間 '+ms+'ms　映像 '+v.videoWidth+'×'+v.videoHeight;
+  },'image/jpeg',0.85)}
+</script>
+</body>
+</html>
