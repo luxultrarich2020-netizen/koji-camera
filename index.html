@@ -115,6 +115,16 @@ button{font-family:inherit}
   <button class="btn" id="startBtn" onclick="startCam()" style="margin-top:10px">カメラを起動する</button>
   <button id="shutter" onclick="shoot()" disabled>● 撮影</button>
   <div id="camMsg" class="msg"></div>
+  <div class="card" style="margin-top:10px">
+    <label>フラッシュ</label>
+    <div class="corners" id="flashBtns" style="grid-template-columns:repeat(3,1fr)">
+      <button data-f="off">なし</button><button data-f="shot">撮影時に光る</button><button data-f="on">ライト点灯</button>
+    </div>
+    <div class="hint" id="flashHint">カメラを起動すると使えるか分かります</div>
+    <label>看板の大きさ <span class="val" id="szv2"></span></label>
+    <input type="range" id="bSz2" min="60" max="140" oninput="g('bSz').value=this.value;saveB()">
+    <div class="row"><input type="checkbox" id="autoRot" onchange="cam.autoRot=this.checked;saveCam()"><label style="margin:0;font-weight:400">スマホの向きに合わせて写真を回転する</label></div>
+  </div>
   <div class="hint" style="margin-top:10px">看板の位置（撮ったあとでも変えられます）</div>
   <div class="corners" id="corners">
     <button data-c="tl">左上</button><button data-c="tr">右上</button>
@@ -174,6 +184,9 @@ button{font-family:inherit}
     <button class="btn sm lib" onclick="edCopyPrev()">前の写真と同じ内容にする</button>
     <label>撮影日時（撮った時刻が自動で入っています）</label>
     <input type="datetime-local" id="eDate" oninput="edDate()">
+    <label>看板の大きさ <span class="val" id="eSzv"></span></label>
+    <input type="range" id="eSz" min="60" max="140" oninput="edSize()">
+    <button class="btn sm lib" onclick="edApply('sz')">この大きさを、この現場の全写真に適用</button>
     <button class="btn sm lib" onclick="edApply('pos')">この位置を、この現場の全写真に適用</button>
     <button class="btn sm lib" onclick="edApply('body')">この検査内容を、この現場の全写真に適用</button>
     <button class="btn sm del" onclick="edDelete()">この写真を削除する</button>
@@ -207,12 +220,13 @@ function go(v){cur=v;['cam','list','set'].forEach(function(n){g('v-'+n).classLis
 /* ========== 設定 ========== */
 var conn=LS.get('kc_conn',{url:'',key:''});
 var B=Object.assign({en:true,color:'green',op:85,sz:100},LS.get('kc_board',{}));
-var cam=Object.assign({site:'',body:'',pos:{c:'bl'}},LS.get('kc_cam',{}));
+var cam=Object.assign({site:'',body:'',pos:{c:'bl'},flash:'off',autoRot:true},LS.get('kc_cam',{}));
 function saveCam(){LS.set('kc_cam',cam)}
 var COLORS={gray:[74,74,74,'#fff'],white:[255,255,255,'#1c2b3a'],black:[17,17,17,'#fff'],green:[33,82,58,'#fff'],blue:[31,78,121,'#fff']};
 var SW={gray:'#4a4a4a',white:'#fff',black:'#111',green:'#21523a',blue:'#1f4e79'};
 Object.keys(COLORS).forEach(function(k){var d=document.createElement('button');d.className='cd';d.style.background=SW[k];d.dataset.k=k;d.textContent='✓';d.onclick=function(){B.color=k;saveB()};g('colors').appendChild(d)});
 function paintB(){g('bEn').checked=B.en;g('bOp').value=B.op;g('bSz').value=B.sz;g('opv').textContent=B.op+'%';g('szv').textContent=B.sz+'%';
+  g('bSz2').value=B.sz;g('szv2').textContent=B.sz+'%';
   document.querySelectorAll('.cd').forEach(function(d){var s=d.dataset.k===B.color;d.classList.toggle('sel',s);d.style.color=s?(B.color==='white'?'#333':'#fff'):'transparent'})}
 function saveB(){B.en=g('bEn').checked;B.op=+g('bOp').value;B.sz=+g('bSz').value;LS.set('kc_board',B);paintB()}
 paintB();
@@ -242,13 +256,13 @@ function addSite(){var n=g('newSite').value.trim();if(!n)return;if(sites.indexOf
 function updShutter(){g('shutter').disabled=!(cam.site&&stream)}
 
 /* ========== 看板の描画（プレビュー・保存で共通） ========== */
-function rect(W,H){var w=Math.round(Math.min(W,H)*0.62*B.sz/100);w=Math.min(w,Math.round(W*0.96));return{w:w,h:Math.round(w*0.68)}}
+function rect(W,H,sz){sz=sz||B.sz;var w=Math.round(Math.min(W,H)*0.62*sz/100);w=Math.min(w,Math.round(W*0.96));return{w:w,h:Math.round(w*0.68)}}
 function resolve(pos,W,H,r){var m=Math.round(Math.min(W,H)*0.008),x,y;
   if(pos.c){x=pos.c.charAt(1)==='l'?m:W-r.w-m;y=pos.c.charAt(0)==='t'?m:H-r.h-m}else{x=pos.x*W;y=pos.y*H}
   return{x:Math.max(0,Math.min(W-r.w,Math.round(x))),y:Math.max(0,Math.min(H-r.h,Math.round(y)))}}
 function fit(c,t,maxW,px,bold){var f=Math.round(px);c.font=(bold?'bold ':'')+f+'px sans-serif';while(c.measureText(t).width>maxW&&f>px*0.4){f--;c.font=(bold?'bold ':'')+f+'px sans-serif'}}
 function drawBoard(c,W,H,it,proj){if(!B.en)return;
-  var col=COLORS[B.color]||COLORS.green,r=rect(W,H),p=resolve(it.pos,W,H,r),u=r.w,gp=u*0.018,hh=u*0.15,fh=u*0.10;
+  var col=COLORS[B.color]||COLORS.green,r=rect(W,H,it.sz),p=resolve(it.pos,W,H,r),u=r.w,gp=u*0.018,hh=u*0.15,fh=u*0.10;
   var x0=p.x+gp,y0=p.y+gp,iw=r.w-2*gp,ih=r.h-2*gp,lw=u*0.2;
   c.save();
   c.fillStyle='rgba('+col[0]+','+col[1]+','+col[2]+','+B.op/100+')';c.fillRect(p.x,p.y,r.w,r.h);
@@ -272,11 +286,12 @@ g('homeUrl').textContent=HOME_URL;g('inframe').style.display=inFrame?'block':'no
 if(!inFrame&&/FBAN|FBAV|Messenger|Line\/|Instagram|MicroMessenger/i.test(navigator.userAgent))g('inapp').style.display='block';else g('inapp').style.display='none';
 function startCam(){
   showMsg('camMsg','','');
+  try{if(window.DeviceMotionEvent&&DeviceMotionEvent.requestPermission)DeviceMotionEvent.requestPermission().catch(function(){})}catch(e){}
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){showMsg('camMsg','err','この画面ではカメラを使えません。ChromeかSafariで、https:// のアドレスを開いてください');return}
   g('startBtn').disabled=true;g('startBtn').textContent='起動中...';
   navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false}).then(function(s){
     stream=s;v.srcObject=s;return v.play()}).then(function(){
-    g('startBtn').style.display='none';g('camOff').style.display='none';g('badge').style.display='block';updShutter();setupZoom();loop()}).catch(function(e){
+    g('startBtn').style.display='none';g('camOff').style.display='none';g('badge').style.display='block';updShutter();setupZoom();setupFlash();loop()}).catch(function(e){
     g('startBtn').disabled=false;g('startBtn').textContent='カメラを起動する';
     if(inFrame){showMsg('camMsg','err','Apps Script の中で開かれているため、カメラが使えません。上のアドレスを、ChromeかSafariで直接開いてください');return}
     if(e.name==='NotFoundError'||e.name==='OverconstrainedError'){
@@ -286,8 +301,8 @@ function startCam(){
     showMsg('camMsg','err','カメラを開けませんでした：'+e.name+'（'+e.message+'）')})}
 function stopCam(){cancelAnimationFrame(raf);if(stream){stream.getTracks().forEach(function(t){t.stop()});stream=null}
   g('startBtn').style.display='block';g('startBtn').disabled=false;g('startBtn').textContent='カメラを起動する';g('camOff').style.display='flex';g('badge').style.display='none';g('zoomRow').style.display='none';updShutter()}
-function loop(){if(!stream)return;if(v.videoWidth){if(cv.width!==v.videoWidth){cv.width=v.videoWidth;cv.height=v.videoHeight}
-  cx.drawImage(v,0,0);drawBoard(cx,cv.width,cv.height,{pos:cam.pos,body:cam.body,date:isoLocal(Date.now())},cam.site)}raf=requestAnimationFrame(loop)}
+function loop(){if(!stream)return;if(v.videoWidth){var r=needRot(),d=upDims(v.videoWidth,v.videoHeight,r);if(cv.width!==d.w||cv.height!==d.h){cv.width=d.w;cv.height=d.h}
+  drawUp(cx,v,v.videoWidth,v.videoHeight,r,cv.width,cv.height);drawBoard(cx,cv.width,cv.height,{pos:cam.pos,body:cam.body,date:isoLocal(Date.now())},cam.site)}raf=requestAnimationFrame(loop)}
 document.addEventListener('visibilitychange',function(){if(document.hidden&&stream)stopCam()});
 function setupZoom(){try{var t=stream.getVideoTracks()[0],c=t.getCapabilities&&t.getCapabilities();if(c&&c.zoom){var z=g('zoom');z.min=c.zoom.min;z.max=c.zoom.max;z.step=c.zoom.step||0.1;z.value=(t.getSettings().zoom)||c.zoom.min;g('zoomRow').style.display='block';g('zv').textContent='×'+(+z.value).toFixed(1)}}catch(e){}}
 function setZoom(){try{var z=+g('zoom').value;stream.getVideoTracks()[0].applyConstraints({advanced:[{zoom:z}]});g('zv').textContent='×'+z.toFixed(1)}catch(e){}}
@@ -295,6 +310,27 @@ document.querySelectorAll('#corners button').forEach(function(b){b.onclick=funct
 function paintCorners(){document.querySelectorAll('#corners button').forEach(function(b){b.classList.toggle('on',!!cam.pos.c&&b.dataset.c===cam.pos.c)})}
 g('body').value=cam.body;paintCorners();
 function onBody(){cam.body=g('body').value;saveCam()}
+
+/* 向きセンサー */
+var IOS=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1),physAng=null;
+function scrAng(){var a=0;try{a=(screen.orientation&&screen.orientation.angle)||window.orientation||0}catch(e){}return((a%360)+360)%360}
+window.addEventListener('devicemotion',function(ev){var a=ev.accelerationIncludingGravity;if(!a||a.x==null||a.y==null)return;
+  var x=IOS?-a.x:a.x,y=IOS?-a.y:a.y;if(Math.abs(x)<3&&Math.abs(y)<3)return;
+  physAng=Math.abs(y)>=Math.abs(x)?(y>0?0:180):(x>0?90:270)});
+function needRot(){if(!cam.autoRot||physAng==null)return 0;return((physAng-scrAng())%360+360)%360}
+function upDims(w,h,r){return r%180?{w:h,h:w}:{w:w,h:h}}
+function drawUp(c,src,w,h,r,ow,oh){c.save();c.translate(ow/2,oh/2);c.rotate(-r*Math.PI/180);var sw=r%180?oh:ow,sh=r%180?ow:oh;c.drawImage(src,-sw/2,-sh/2,sw,sh);c.restore()}
+g('autoRot').checked=cam.autoRot;
+
+/* フラッシュ */
+var torchOK=false,shooting=false;
+function setTorch(on){try{stream.getVideoTracks()[0].applyConstraints({advanced:[{torch:on}]})}catch(e){}}
+function paintFlash(){document.querySelectorAll('#flashBtns button').forEach(function(b){b.classList.toggle('on',b.dataset.f===cam.flash)})}
+function setupFlash(){torchOK=false;try{var c=stream.getVideoTracks()[0].getCapabilities();torchOK=!!(c&&c.torch)}catch(e){}
+  g('flashHint').textContent=torchOK?'「撮影時に光る」は撮る瞬間だけライトが点きます':'この端末・ブラウザではフラッシュ（ライト）を使えません（iPhoneのSafariは非対応です）';
+  paintFlash();if(torchOK&&cam.flash==='on')setTorch(true)}
+document.querySelectorAll('#flashBtns button').forEach(function(b){b.onclick=function(){cam.flash=b.dataset.f;saveCam();paintFlash();if(stream&&torchOK)setTorch(cam.flash==='on')}});
+paintFlash();
 
 /* 検査内容の履歴（7件） */
 function loadHist(){return LS.get('kc_hist',[])}
@@ -314,11 +350,12 @@ function sortItems(){items.sort(function(a,b){return a.site<b.site?-1:a.site>b.s
 function updBadge(){var n=items.length;g('badge').textContent='送信待ち '+n+'枚';g('t-list').textContent='送信待ち'+(n?'（'+n+'）':'')}
 dbOpen().then(function(d){db=d;return dbAll()}).then(function(a){items=a||[];updBadge()}).catch(function(){showMsg('camMsg','err','この画面では、写真を端末に溜めておけません（プライベートモードではないか確かめてください）')});
 
-function shoot(){
-  if(!stream||!v.videoWidth||!cam.site||!db)return;
-  var W=v.videoWidth,H=v.videoHeight,k=Math.min(1,1600/Math.max(W,H)),c=document.createElement('canvas');c.width=Math.round(W*k);c.height=Math.round(H*k);
-  c.getContext('2d').drawImage(v,0,0,c.width,c.height);
-  var t=Date.now(),it={id:t+'_'+Math.random().toString(36).slice(2,6),t:t,site:cam.site,body:cam.body,date:isoLocal(t),pos:JSON.parse(JSON.stringify(cam.pos))};
+function shoot(){if(shooting||!stream||!v.videoWidth||!cam.site||!db)return;shooting=true;
+  if(cam.flash==='shot'&&torchOK){setTorch(true);setTimeout(function(){capture();setTorch(false);shooting=false},350)}else{capture();shooting=false}}
+function capture(){if(!stream||!v.videoWidth)return;
+  var r=needRot(),W=v.videoWidth,H=v.videoHeight,d=upDims(W,H,r),k=Math.min(1,1600/Math.max(d.w,d.h)),c=document.createElement('canvas');c.width=Math.round(d.w*k);c.height=Math.round(d.h*k);
+  drawUp(c.getContext('2d'),v,W,H,r,c.width,c.height);
+  var t=Date.now(),it={id:t+'_'+Math.random().toString(36).slice(2,6),t:t,site:cam.site,body:cam.body,date:isoLocal(t),pos:JSON.parse(JSON.stringify(cam.pos)),sz:B.sz};
   saveHist(cam.body);paintHist();
   try{if(navigator.vibrate)navigator.vibrate(30)}catch(e){}
   cv.style.opacity='.4';setTimeout(function(){cv.style.opacity=''},80);
@@ -350,20 +387,21 @@ var ei=0,eImg=null,eRender=0;
 function openEd(i){if(i<0)return;ei=i;g('ed').style.display='block';document.body.style.overflow='hidden';loadEd()}
 function closeEd(){var it=items[ei];if(it){saveHist(it.body);dbPut(it)}g('ed').style.display='none';document.body.style.overflow='';renderList()}
 function nav(d){var n=ei+d;if(n<0||n>=items.length)return;dbPut(items[ei]);ei=n;loadEd()}
-function loadEd(){var it=items[ei];if(!it)return;g('edT').textContent=it.site+'　'+(ei+1)+'/'+items.length;g('eBody').value=it.body||'';g('eDate').value=it.date||'';histChips(g('eHist'),function(t){g('eBody').value=t;edBody()});
+function loadEd(){var it=items[ei];if(!it)return;g('eSz').value=it.sz||B.sz;g('eSzv').textContent=g('eSz').value+'%';g('edT').textContent=it.site+'　'+(ei+1)+'/'+items.length;g('eBody').value=it.body||'';g('eDate').value=it.date||'';histChips(g('eHist'),function(t){g('eBody').value=t;edBody()});
   bitmapOf(it.blob).then(function(b){var k=Math.min(1,1000/Math.max(bw(b),bh(b))),c=document.createElement('canvas');c.width=Math.round(bw(b)*k);c.height=Math.round(bh(b)*k);c.getContext('2d').drawImage(b,0,0,c.width,c.height);if(b.close)b.close();eImg=c;
     var e=g('edc');e.width=c.width;e.height=c.height;drawEd();g('ed').scrollTop=0})}
 function drawEd(){if(!eImg)return;var c=g('edc'),x=c.getContext('2d');x.drawImage(eImg,0,0);drawBoard(x,c.width,c.height,items[ei],items[ei].site)}
 function edBody(){items[ei].body=g('eBody').value;drawEd()}
 function edDate(){items[ei].date=g('eDate').value;drawEd()}
+function edSize(){items[ei].sz=+g('eSz').value;g('eSzv').textContent=g('eSz').value+'%';drawEd()}
 function edCorner(c){items[ei].pos={c:c};drawEd()}
 function edCopyPrev(){if(ei<1)return;g('eBody').value=items[ei-1].body||'';edBody()}
-function edApply(k){var it=items[ei];items.forEach(function(o){if(o.site!==it.site)return;if(k==='pos')o.pos=JSON.parse(JSON.stringify(it.pos));else o.body=it.body;dbPut(o)});if(k==='body')saveHist(it.body);toast('この現場の全写真に適用しました')}
+function edApply(k){var it=items[ei];items.forEach(function(o){if(o.site!==it.site)return;if(k==='pos')o.pos=JSON.parse(JSON.stringify(it.pos));else if(k==='sz')o.sz=it.sz||B.sz;else o.body=it.body;dbPut(o)});if(k==='body')saveHist(it.body);toast('この現場の全写真に適用しました')}
 function edDelete(){var it=items[ei];if(!confirm('この写真を削除しますか？'))return;dbDel(it.id);items.splice(ei,1);updBadge();if(!items.length){closeEd();return}if(ei>=items.length)ei=items.length-1;loadEd()}
 (function(){var c=g('edc'),drag=false,ox=0,oy=0;
   function pt(ev){var r=c.getBoundingClientRect();return{x:(ev.clientX-r.left)*c.width/r.width,y:(ev.clientY-r.top)*c.height/r.height}}
-  function setPos(x,y){var it=items[ei],W=c.width,H=c.height,r=rect(W,H);x=Math.max(0,Math.min(W-r.w,x));y=Math.max(0,Math.min(H-r.h,y));it.pos={x:x/W,y:y/H};drawEd()}
-  c.addEventListener('pointerdown',function(ev){var it=items[ei];if(!it)return;var W=c.width,H=c.height,r=rect(W,H),b=resolve(it.pos,W,H,r),p=pt(ev);
+  function setPos(x,y){var it=items[ei],W=c.width,H=c.height,r=rect(W,H,it.sz);x=Math.max(0,Math.min(W-r.w,x));y=Math.max(0,Math.min(H-r.h,y));it.pos={x:x/W,y:y/H};drawEd()}
+  c.addEventListener('pointerdown',function(ev){var it=items[ei];if(!it)return;var W=c.width,H=c.height,r=rect(W,H,it.sz),b=resolve(it.pos,W,H,r),p=pt(ev);
     if(p.x>=b.x&&p.x<=b.x+r.w&&p.y>=b.y&&p.y<=b.y+r.h){ox=p.x-b.x;oy=p.y-b.y}else{ox=r.w/2;oy=r.h/2;setPos(p.x-ox,p.y-oy)}
     drag=true;c.setPointerCapture(ev.pointerId);ev.preventDefault()});
   c.addEventListener('pointermove',function(ev){if(!drag)return;var p=pt(ev);setPos(p.x-ox,p.y-oy)});
