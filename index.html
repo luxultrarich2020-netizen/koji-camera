@@ -61,6 +61,8 @@ button{font-family:inherit}
 #zoomRow{display:none;margin:6px 0 0}
 #fsBtn,#fsExit{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:14px;padding:6px 12px;font-size:13px;z-index:2}
 #fsBtn{display:none}#fsExit{display:none}
+#rotHint{display:none;position:absolute;left:8px;right:8px;bottom:8px;background:rgba(0,0,0,.65);color:#fff;border-radius:10px;padding:6px 10px;font-size:11px;line-height:1.5;z-index:2}
+body.fs #rotHint{bottom:auto;top:calc(56px + env(safe-area-inset-top))}
 /* 全画面モード：映像を画面いっぱいにし、撮影ボタン・ズーム・看板の位置ボタンを上に重ねる */
 body.fs{overflow:hidden}
 body.fs #vw{position:fixed;inset:0;z-index:70;border-radius:0;height:100vh;height:100dvh}
@@ -131,6 +133,7 @@ body.fs #corners button{padding:8px 0;font-size:12px}
     <canvas id="view" width="16" height="9"></canvas>
     <div id="camOff">「カメラを起動する」を押してください</div>
     <div id="badge" style="display:none">0枚</div>
+    <div id="rotHint">端末を横にしても画面が横向きにならないときは、「画面の向きのロック」が入っています。コントロールセンターでロックを解除してください。写真は、端末を構えた向きのまま保存されます。</div>
     <button id="fsBtn" onclick="setFs(true)">⛶ 全画面</button>
     <button id="fsExit" onclick="setFs(false)">✕ 戻る</button>
   </div>
@@ -331,12 +334,14 @@ document.addEventListener('fullscreenchange',onFsChange);document.addEventListen
 function stopCam(){cancelAnimationFrame(raf);if(stream){stream.getTracks().forEach(function(t){t.stop()});stream=null}
   g('startBtn').style.display='block';g('startBtn').disabled=false;g('startBtn').textContent='カメラを起動する';g('camOff').style.display='flex';g('badge').style.display='none';g('fsBtn').style.display='none';g('zoomRow').style.display='none';setFs(false);updShutter()}
 /* 端末を横にしたとき、映像だけ縦のまま届く端末があるので、画面の向きに合わせて映像を回す */
-function vrot(){var vw=v.videoWidth,vh=v.videoHeight,land=window.innerWidth>window.innerHeight;if(land===(vw>=vh))return 0;
+function vrot(){var vw=v.videoWidth,vh=v.videoHeight,land=window.innerWidth>window.innerHeight;if(land===(vw>=vh)||!land)return 0;   // 画面が縦で映像が横（向きのロック中）は、回さずそのまま使う
   var a=(screen.orientation&&screen.orientation.angle!=null)?screen.orientation.angle:(window.orientation||0);a=((a%360)+360)%360;return(a===90||a===270)?a:90}
 function vdims(){var r=vrot();return r%180?{w:v.videoHeight,h:v.videoWidth,r:r}:{w:v.videoWidth,h:v.videoHeight,r:r}}
 function paintVideo(ctx,w,h,r){if(!r){ctx.drawImage(v,0,0,w,h);return}ctx.save();ctx.translate(w/2,h/2);ctx.rotate(r*Math.PI/180);ctx.drawImage(v,-h/2,-w/2,h,w);ctx.restore()}
+var hintOn=false;
+function lockHint(){var on=window.innerWidth<=window.innerHeight&&v.videoWidth>v.videoHeight;if(on!==hintOn){hintOn=on;g('rotHint').style.display=on?'block':'none'}}
 function loop(){if(!stream)return;if(v.videoWidth){var d=vdims();if(cv.width!==d.w||cv.height!==d.h){cv.width=d.w;cv.height=d.h}
-  paintVideo(cx,cv.width,cv.height,d.r);drawBoard(cx,cv.width,cv.height,{pos:cam.pos,body:cam.body,date:isoLocal(Date.now())},cam.site)}raf=requestAnimationFrame(loop)}
+  paintVideo(cx,cv.width,cv.height,d.r);lockHint();drawBoard(cx,cv.width,cv.height,{pos:cam.pos,body:cam.body,date:isoLocal(Date.now())},cam.site)}raf=requestAnimationFrame(loop)}
 document.addEventListener('visibilitychange',function(){if(document.hidden&&stream)stopCam()});
 function setupZoom(){try{var t=stream.getVideoTracks()[0],c=t.getCapabilities&&t.getCapabilities();if(c&&c.zoom){var z=g('zoom');z.min=c.zoom.min;z.max=c.zoom.max;z.step=c.zoom.step||0.1;z.value=(t.getSettings().zoom)||c.zoom.min;g('zoomRow').style.display='block';g('zv').textContent='×'+(+z.value).toFixed(1)}}catch(e){}}
 function setZoom(){try{var z=+g('zoom').value;stream.getVideoTracks()[0].applyConstraints({advanced:[{zoom:z}]});g('zv').textContent='×'+z.toFixed(1)}catch(e){}}
