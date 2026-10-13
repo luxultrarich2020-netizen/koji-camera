@@ -330,8 +330,13 @@ function onFsChange(){if(!document.fullscreenElement&&!document.webkitFullscreen
 document.addEventListener('fullscreenchange',onFsChange);document.addEventListener('webkitfullscreenchange',onFsChange);
 function stopCam(){cancelAnimationFrame(raf);if(stream){stream.getTracks().forEach(function(t){t.stop()});stream=null}
   g('startBtn').style.display='block';g('startBtn').disabled=false;g('startBtn').textContent='カメラを起動する';g('camOff').style.display='flex';g('badge').style.display='none';g('fsBtn').style.display='none';g('zoomRow').style.display='none';setFs(false);updShutter()}
-function loop(){if(!stream)return;if(v.videoWidth){if(cv.width!==v.videoWidth){cv.width=v.videoWidth;cv.height=v.videoHeight}
-  cx.drawImage(v,0,0);drawBoard(cx,cv.width,cv.height,{pos:cam.pos,body:cam.body,date:isoLocal(Date.now())},cam.site)}raf=requestAnimationFrame(loop)}
+/* 端末を横にしたとき、映像だけ縦のまま届く端末があるので、画面の向きに合わせて映像を回す */
+function vrot(){var vw=v.videoWidth,vh=v.videoHeight,land=window.innerWidth>window.innerHeight;if(land===(vw>=vh))return 0;
+  var a=(screen.orientation&&screen.orientation.angle!=null)?screen.orientation.angle:(window.orientation||0);a=((a%360)+360)%360;return(a===90||a===270)?a:90}
+function vdims(){var r=vrot();return r%180?{w:v.videoHeight,h:v.videoWidth,r:r}:{w:v.videoWidth,h:v.videoHeight,r:r}}
+function paintVideo(ctx,w,h,r){if(!r){ctx.drawImage(v,0,0,w,h);return}ctx.save();ctx.translate(w/2,h/2);ctx.rotate(r*Math.PI/180);ctx.drawImage(v,-h/2,-w/2,h,w);ctx.restore()}
+function loop(){if(!stream)return;if(v.videoWidth){var d=vdims();if(cv.width!==d.w||cv.height!==d.h){cv.width=d.w;cv.height=d.h}
+  paintVideo(cx,cv.width,cv.height,d.r);drawBoard(cx,cv.width,cv.height,{pos:cam.pos,body:cam.body,date:isoLocal(Date.now())},cam.site)}raf=requestAnimationFrame(loop)}
 document.addEventListener('visibilitychange',function(){if(document.hidden&&stream)stopCam()});
 function setupZoom(){try{var t=stream.getVideoTracks()[0],c=t.getCapabilities&&t.getCapabilities();if(c&&c.zoom){var z=g('zoom');z.min=c.zoom.min;z.max=c.zoom.max;z.step=c.zoom.step||0.1;z.value=(t.getSettings().zoom)||c.zoom.min;g('zoomRow').style.display='block';g('zv').textContent='×'+(+z.value).toFixed(1)}}catch(e){}}
 function setZoom(){try{var z=+g('zoom').value;stream.getVideoTracks()[0].applyConstraints({advanced:[{zoom:z}]});g('zv').textContent='×'+z.toFixed(1)}catch(e){}}
@@ -392,8 +397,8 @@ dbOpen().then(function(d){db=d;return dbAll()}).then(function(a){items=a||[];upd
 
 function shoot(){
   if(!stream||!v.videoWidth||!cam.site||!db)return;
-  var W=v.videoWidth,H=v.videoHeight,k=Math.min(1,1600/Math.max(W,H)),c=document.createElement('canvas');c.width=Math.round(W*k);c.height=Math.round(H*k);
-  c.getContext('2d').drawImage(v,0,0,c.width,c.height);
+  var d=vdims(),W=d.w,H=d.h,k=Math.min(1,1600/Math.max(W,H)),c=document.createElement('canvas');c.width=Math.round(W*k);c.height=Math.round(H*k);
+  paintVideo(c.getContext('2d'),c.width,c.height,d.r);
   var t=Date.now(),it={id:t+'_'+Math.random().toString(36).slice(2,6),t:t,site:cam.site,body:cam.body,date:isoLocal(t),pos:JSON.parse(JSON.stringify(cam.pos))};
   saveHist(cam.body);paintHist();
   try{if(navigator.vibrate)navigator.vibrate(30)}catch(e){}
