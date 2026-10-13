@@ -66,8 +66,8 @@ button{font-family:inherit}
 body.fs #rotHint{bottom:auto;top:calc(56px + env(safe-area-inset-top))}
 /* 全画面モード：映像を画面いっぱいにし、撮影ボタン・ズーム・看板の位置ボタンを上に重ねる */
 body.fs{overflow:hidden}
-body.fs #vw{position:fixed;top:0;right:0;bottom:0;left:0;z-index:70;border-radius:0;height:100vh;height:100dvh}
-body.fs #view{width:100%;height:100%;max-height:none;object-fit:contain}
+body.fs #vw{position:fixed;top:0;left:0;width:100%;z-index:70;border-radius:0;height:100vh;display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center}
+body.fs #view{width:auto;height:auto;max-width:none;max-height:none}
 body.fs #fsBtn{display:none!important}
 body.fs #fsExit{display:block;top:calc(10px + env(safe-area-inset-top));right:10px;padding:9px 14px;font-size:14px}
 body.fs #badge{top:auto;left:14px;bottom:calc(34px + env(safe-area-inset-bottom))}
@@ -323,14 +323,21 @@ function startCam(){
     if(e.name==='NotAllowedError'||e.name==='SecurityError'){showMsg('camMsg','err','カメラの許可がありません（'+e.name+'）。ブラウザのアドレス欄の左のマークから、カメラを「許可」にしてください');return}
     showMsg('camMsg','err','カメラを開けませんでした：'+e.name+'（'+e.message+'）')})}
 /* 全画面（ブラウザの全画面にできる端末ではそれも使い、できない端末は画面いっぱいの表示にする） */
+function fitFs(){var vw=g('vw');if(!document.body.classList.contains('fs')){vw.style.height='';cv.style.width='';cv.style.height='';return}
+  var W=window.innerWidth,H=window.innerHeight;vw.style.height=H+'px';
+  if(!cv.width||!cv.height)return;var k=Math.min(W/cv.width,H/cv.height);cv.style.width=Math.round(cv.width*k)+'px';cv.style.height=Math.round(cv.height*k)+'px'}
+window.addEventListener('resize',function(){fitFs();setTimeout(fitFs,300)});window.addEventListener('orientationchange',function(){setTimeout(fitFs,300);setTimeout(fitFs,800)});
+var vwHome=null;
+function moveVw(on){var vw=g('vw');if(on&&!vwHome){vwHome=document.createComment('vw');vw.parentNode.insertBefore(vwHome,vw);document.body.appendChild(vw)}
+  else if(!on&&vwHome){vwHome.parentNode.insertBefore(vw,vwHome);vwHome.parentNode.removeChild(vwHome);vwHome=null}}
 function setFs(on){
-  document.body.classList.toggle('fs',!!on);
+  moveVw(!!on);document.body.classList.toggle('fs',!!on);fitFs();
   try{
     if(on){var el=document.documentElement;if(el.requestFullscreen&&!document.fullscreenElement)el.requestFullscreen().catch(function(){});else if(el.webkitRequestFullscreen&&!document.webkitFullscreenElement)el.webkitRequestFullscreen()}
     else{if(document.fullscreenElement&&document.exitFullscreen)document.exitFullscreen().catch(function(){});else if(document.webkitFullscreenElement&&document.webkitExitFullscreen)document.webkitExitFullscreen()}
   }catch(e){}
 }
-function onFsChange(){if(!document.fullscreenElement&&!document.webkitFullscreenElement&&document.body.classList.contains('fs')){document.body.classList.remove('fs')}}
+function onFsChange(){if(!document.fullscreenElement&&!document.webkitFullscreenElement&&document.body.classList.contains('fs')){moveVw(false);document.body.classList.remove('fs');fitFs()}}
 document.addEventListener('fullscreenchange',onFsChange);document.addEventListener('webkitfullscreenchange',onFsChange);
 function stopCam(){cancelAnimationFrame(raf);if(stream){stream.getTracks().forEach(function(t){t.stop()});stream=null}
   g('startBtn').style.display='block';g('startBtn').disabled=false;g('startBtn').textContent='カメラを起動する';g('camOff').style.display='flex';g('badge').style.display='none';g('fsBtn').style.display='none';g('zoomRow').style.display='none';setFs(false);updShutter()}
@@ -341,7 +348,7 @@ function vdims(){var r=vrot();return r%180?{w:v.videoHeight,h:v.videoWidth,r:r}:
 function paintVideo(ctx,w,h,r){if(!r){ctx.drawImage(v,0,0,w,h);return}ctx.save();ctx.translate(w/2,h/2);ctx.rotate(r*Math.PI/180);ctx.drawImage(v,-h/2,-w/2,h,w);ctx.restore()}
 var hintOn=false;
 function lockHint(){var on=window.innerWidth<=window.innerHeight&&v.videoWidth>v.videoHeight;if(on!==hintOn){hintOn=on;g('rotHint').style.display=on?'block':'none'}}
-function loop(){if(!stream)return;if(v.videoWidth){var d=vdims();if(cv.width!==d.w||cv.height!==d.h){cv.width=d.w;cv.height=d.h}
+function loop(){if(!stream)return;if(v.videoWidth){var d=vdims();if(cv.width!==d.w||cv.height!==d.h){cv.width=d.w;cv.height=d.h;fitFs()}
   paintVideo(cx,cv.width,cv.height,d.r);lockHint();drawBoard(cx,cv.width,cv.height,{pos:cam.pos,body:cam.body,date:isoLocal(Date.now())},cam.site)}raf=requestAnimationFrame(loop)}
 document.addEventListener('visibilitychange',function(){if(document.hidden&&stream)stopCam()});
 function setupZoom(){try{var t=stream.getVideoTracks()[0],c=t.getCapabilities&&t.getCapabilities();if(c&&c.zoom){var z=g('zoom');z.min=c.zoom.min;z.max=c.zoom.max;z.step=c.zoom.step||0.1;z.value=(t.getSettings().zoom)||c.zoom.min;g('zoomRow').style.display='block';g('zv').textContent='×'+(+z.value).toFixed(1)}}catch(e){}}
