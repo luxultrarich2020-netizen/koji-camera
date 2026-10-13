@@ -56,7 +56,7 @@ button{font-family:inherit}
 .msg.warn{display:block;background:var(--accs);color:var(--ink)}
 #vw{position:relative;background:#000;border-radius:10px;overflow:hidden}
 #view{display:block;width:100%;max-height:52vh;max-height:52svh;object-fit:contain;background:#000}
-#camOff{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#9aa;font-size:14px;text-align:center;padding:20px}
+#camOff{position:absolute;top:0;right:0;bottom:0;left:0;display:flex;align-items:center;justify-content:center;color:#9aa;font-size:14px;text-align:center;padding:20px}
 #badge{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.6);color:#fff;border-radius:14px;padding:3px 10px;font-size:13px}
 #zoomRow{display:none;margin:6px 0 0}
 #fsBtn,#fsExit{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:14px;padding:6px 12px;font-size:13px;z-index:2}
@@ -65,7 +65,7 @@ button{font-family:inherit}
 body.fs #rotHint{bottom:auto;top:calc(56px + env(safe-area-inset-top))}
 /* 全画面モード：映像を画面いっぱいにし、撮影ボタン・ズーム・看板の位置ボタンを上に重ねる */
 body.fs{overflow:hidden}
-body.fs #vw{position:fixed;inset:0;z-index:70;border-radius:0;height:100vh;height:100dvh}
+body.fs #vw{position:fixed;top:0;right:0;bottom:0;left:0;z-index:70;border-radius:0;height:100vh;height:100dvh}
 body.fs #view{width:100%;height:100%;max-height:none;object-fit:contain}
 body.fs #fsBtn{display:none!important}
 body.fs #fsExit{display:block;top:calc(10px + env(safe-area-inset-top));right:10px;padding:9px 14px;font-size:14px}
@@ -94,12 +94,12 @@ body.fs #corners button{padding:8px 0;font-size:12px}
 .colors{display:flex;gap:8px;margin-bottom:10px}
 .cd{width:38px;height:38px;border-radius:50%;border:2px solid var(--line);font-size:17px;padding:0}
 .cd.sel{border-color:var(--acc);box-shadow:0 0 0 2px var(--surface) inset}
-#ed{display:none;position:fixed;inset:0;z-index:50;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch}
+#ed{display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:50;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch}
 #ed .top{position:sticky;top:0;z-index:2;background:linear-gradient(155deg,var(--hdr-a),var(--hdr-b));color:var(--on-hdr);padding:8px 10px;display:flex;align-items:center;gap:8px}
 #ed .top b{flex:1;text-align:center;font-size:13px}
 #ed .top button{background:rgba(255,255,255,.25);color:var(--on-hdr);border:none;border-radius:8px;padding:8px 12px;font-size:15px}
 #edc{width:100%;display:block;touch-action:none;background:#555}
-#bp{display:none;position:fixed;inset:0;z-index:60;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch}
+#bp{display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:60;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch}
 #bp .top{position:sticky;top:0;z-index:2;background:linear-gradient(155deg,var(--hdr-a),var(--hdr-b));color:var(--on-hdr);padding:8px 10px;display:flex;align-items:center;gap:8px}
 #bp .top b{flex:1;text-align:center;font-size:14px}
 #bp .top button{background:rgba(255,255,255,.25);color:var(--on-hdr);border:none;border-radius:8px;padding:8px 12px;font-size:15px}
