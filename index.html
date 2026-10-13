@@ -42,7 +42,8 @@ input[type=range]{width:100%;accent-color:var(--acc)}
 button{font-family:inherit}
 .btn{display:block;width:100%;padding:14px;font-size:16px;font-weight:700;border:none;border-radius:12px;margin-bottom:10px;color:#fff;background:linear-gradient(155deg,var(--btn-a),var(--btn-b))}
 .btn.lib{background:var(--surface);color:var(--acc);border:1.5px solid var(--acc)}
-.btn.up{background:linear-gradient(155deg,var(--cta-a),var(--cta-b));color:var(--oncta)}
+.btn.up{background:var(--cta-a);color:var(--oncta)}
+@supports (background:color-mix(in srgb,red,blue)){.btn.up{background:linear-gradient(155deg,var(--cta-a),var(--cta-b))}}
 .btn.sm{padding:9px;font-size:13px;margin-bottom:6px}
 .btn.del{background:var(--errbg);color:var(--err)}
 .btn:disabled{opacity:.45}
