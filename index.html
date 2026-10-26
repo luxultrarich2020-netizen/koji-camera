@@ -42,6 +42,7 @@ input[type=range]{width:100%;accent-color:var(--acc)}
 button{font-family:inherit}
 .btn{display:block;width:100%;padding:14px;font-size:16px;font-weight:700;border:none;border-radius:12px;margin-bottom:10px;color:#fff;background:#1e3a5f;background-color:var(--pri)}
 @supports (aspect-ratio:1/1){.btn{background:linear-gradient(155deg,var(--btn-a),var(--btn-b))}}
+@supports not (aspect-ratio:1/1){.btn{background:#3d5378!important;color:#fff!important}.btn.up{background:#d3a94a!important;color:#1d2029!important}.btn.lib{background:#fff!important;color:#7a5a12!important;border:1.5px solid #a9822f!important}.btn.del{background:#f7e6e4!important;color:#9c3b31!important}.btn:disabled{opacity:.5}}
 .btn.lib,.btn.lib:disabled{background:var(--surface);color:var(--acc);border:1.5px solid var(--acc)}
 .btn.up{background:#a9822f;background-color:var(--acc);color:#fff;color:var(--oncta)}
 @supports (aspect-ratio:1/1) and (background:color-mix(in srgb,red,blue)){.btn.up{background:linear-gradient(155deg,var(--cta-a),var(--cta-b))}}
