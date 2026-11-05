@@ -148,6 +148,8 @@ body.fs #corners button{padding:8px 0;font-size:12px}
   <div id="zoomRow"><label>ズーム <span class="val" id="zv"></span></label><input type="range" id="zoom" oninput="setZoom()"></div>
   <button class="btn" id="startBtn" onclick="startCam()" style="margin-top:10px">カメラを起動する</button>
   <button id="shutter" onclick="shoot()" disabled>● 撮影</button>
+  <button class="btn sm lib" id="libBtn" onclick="g('libIn').click()" style="margin-top:10px">📁 写真フォルダから選んで追加（カメラが使えないとき）</button>
+  <input type="file" id="libIn" accept="image/*" multiple style="display:none" onchange="libAdd(this)">
   <div id="camMsg" class="msg"></div>
   <div class="hint" style="margin-top:10px">看板の位置（撮ったあとでも変えられます）</div>
   <div class="corners" id="corners">
@@ -424,6 +426,23 @@ function shoot(){
   try{if(navigator.vibrate)navigator.vibrate(30)}catch(e){}
   cv.style.opacity='.4';setTimeout(function(){cv.style.opacity=''},80);
   c.toBlob(function(b){c.width=0;it.blob=b;items.push(it);updBadge();dbPut(it).catch(function(){showMsg('camMsg','err','保存に失敗しました。端末の空き容量を確かめてください')})},'image/jpeg',0.9)}
+
+/* ========== 写真フォルダから追加（カメラが使えない端末・別のカメラで撮った写真） ========== */
+function libAdd(inp){
+  var fs=Array.prototype.slice.call(inp.files||[]);inp.value='';
+  if(!fs.length)return;
+  if(!cam.site){showMsg('camMsg','err','先に「現場」を選んでください');return}
+  if(!db){showMsg('camMsg','err','この画面では、写真を端末に溜めておけません');return}
+  fs=fs.filter(function(f){return /^image\//.test(f.type)||/\.(jpe?g|png|heic|heif)$/i.test(f.name)});
+  fs.sort(function(a,b){return (a.lastModified||0)-(b.lastModified||0)});
+  var n=0,last=0;
+  fs.forEach(function(f){
+    var t=f.lastModified||Date.now();if(t<=last)t=last+1;last=t;   // 撮影日時（ファイルの日時）。同じ時刻でも順番が崩れないようにずらす
+    var it={id:t+'_'+Math.random().toString(36).slice(2,6),t:t,site:cam.site,body:cam.body,date:isoLocal(t),pos:JSON.parse(JSON.stringify(cam.pos)),blob:f};
+    items.push(it);n++;dbPut(it).catch(function(){showMsg('camMsg','err','保存に失敗しました。端末の空き容量を確かめてください')});
+  });
+  if(n){saveHist(cam.body);paintHist();updBadge();showMsg('camMsg','ok',n+'枚を「送信待ち」に追加しました。看板の内容・位置は「送信待ち」で写真をタップして直せます')}
+}
 
 /* ========== 溜まった写真の一覧 ========== */
 var thumbUrls=[];
